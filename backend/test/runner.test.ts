@@ -113,6 +113,17 @@ test('tool handoffs persist only to an explicitly verified same-team squad', asy
   assert.ok(state.calls[1]?.some((message) => message.role === 'tool' && message.tool_name === 'share_finding'));
 });
 
+test('tool handoffs can name a same-team squad; unknown names fail without inserting context', async () => {
+  const named = setup([tool('share_finding', { target_squad_id: 'Product', content: 'By name' }), { role: 'assistant', content: 'Shared.' }]);
+  await executeRun({ ...named, db: named.db.client });
+  assert.equal(named.run.status, 'completed');
+  assert.equal(named.db.rows.context_entries!.find((row) => row.kind === 'handoff')?.squad_id, targetId);
+  const unknown = setup([tool('share_finding', { target_squad_id: 'Rival Squad', content: 'Must not land' })]);
+  await executeRun({ ...unknown, db: unknown.db.client });
+  assert.equal(unknown.run.status, 'failed');
+  assert.equal(unknown.db.rows.context_entries!.some((row) => row.kind === 'handoff'), false);
+});
+
 test('cross-team handoff targets fail without inserting context', async () => {
   const state = setup([tool('share_finding', { target_squad_id: targetId, content: 'Must not leak' })]);
   state.db.rows.squads![1]!.team_id = otherTeam;
