@@ -33,7 +33,8 @@ try {
   for (const [label, squadId] of [['VENUE', squads.venue_squad_id], ['PROMO', squads.promo_squad_id], ['LOGISTICS', squads.logistics_squad_id]]) {
     let run: any;
     while (true) {
-      [run] = await api(token, `/teams/${team.id}/squads/${squadId}/runs`);
+      // Polling tolerates brief auth/network hiccups; the mission keeps running server-side.
+      try { [run] = await api(token, `/teams/${team.id}/squads/${squadId}/runs`); } catch { run = undefined; }
       if (run && (run.status === 'completed' || run.status === 'failed')) break;
       if (Date.now() - started > 1500000) throw new Error('Mission timed out.');
       await new Promise(resolve => setTimeout(resolve, 3000));
