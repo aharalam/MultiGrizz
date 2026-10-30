@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { buildBear } from "@/lib/bears3d";
+import { buildRoom, drawRoomWall, type Room } from "@/lib/rooms3d";
 import { SLOTS, type Role, type Status, type Team } from "@/lib/teams";
-import { drawBanner, drawEmptyScene, drawSign, drawWallPaper, makeSignCanvas, PINK } from "@/lib/art";
+import { drawBanner, drawGlow, drawMoonCanvas, drawSign, drawWallPaper, makeSignCanvas, PINK } from "@/lib/art";
 
 type Props = {
+  intro: boolean;
   teams: Team[];
   focus: number | null;
   bay: number;
@@ -22,12 +25,14 @@ const RING = 10; // carousels sit on this circle round the campfire
 const STEP = Math.PI / 3;
 
 type Bay = {
-  bear: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
+  bear: THREE.Group | null;
+  bearKey: string; // species-costume the current model was built for
+  shadow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  room: Room | null;
   sign: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
   signCanvas: HTMLCanvasElement;
   panel: THREE.MeshBasicMaterial;
   key: string;
-  art: string | null;
   role: Role | null;
   status: Status | null;
   hop: number;
@@ -75,20 +80,20 @@ export default function BearWorld(props: Props) {
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#120d22");
-    scene.fog = new THREE.FogExp2("#1a1230", 0.016);
+    scene.background = new THREE.Color("#221b3d");
+    scene.fog = new THREE.FogExp2("#2b2350", 0.012);
     const camera = new THREE.PerspectiveCamera(40, el.clientWidth / el.clientHeight, 0.1, 300);
-    const camPos = new THREE.Vector3(0, 21, 19);
+    const camPos = new THREE.Vector3(0, 46, 72); // starts high; dives in as the intro opens
     const camLook = new THREE.Vector3();
     camera.position.copy(camPos);
 
-    // lights: cold moon, warm campfire, a lamp that follows the focused bay
-    scene.add(new THREE.HemisphereLight("#7f6fb8", "#1a1020", 1.1));
-    const moonLight = new THREE.DirectionalLight("#b9c6ff", 1.4);
+    // lights: a bright cold moon, warm campfire, a lamp that follows the focused bay
+    scene.add(new THREE.HemisphereLight("#a99be0", "#2c2244", 1.7));
+    const moonLight = new THREE.DirectionalLight("#cdd6ff", 2.4);
     moonLight.position.set(-30, 40, -40);
     scene.add(moonLight);
-    const fire = new THREE.PointLight("#ff8a3a", 60, 40, 1.6);
-    fire.position.set(0, 1.5, 0);
+    const fire = new THREE.PointLight("#ff8a3a", 70, 45, 1.5);
+    fire.position.set(0, 1.6, 0);
     scene.add(fire);
     const lamp = new THREE.PointLight("#ffe2b8", 0, 12, 1.5);
     scene.add(lamp);
@@ -99,95 +104,272 @@ export default function BearWorld(props: Props) {
       t.anisotropy = 4;
       return t;
     };
-    const sceneTex: Record<string, THREE.Texture> = {
-      researcher: tex("/scenes/researcher.jpg"),
-      coder: tex("/scenes/coder.jpg"),
-      writer: tex("/scenes/writer.jpg"),
-      planner: tex("/scenes/planner.jpg"),
-      empty: tex(drawEmptyScene()),
+    const wallTex: Record<Role | "empty", THREE.Texture> = {
+      researcher: tex(drawRoomWall("researcher")),
+      coder: tex(drawRoomWall("coder")),
+      writer: tex(drawRoomWall("writer")),
+      planner: tex(drawRoomWall("planner")),
+      empty: tex(drawRoomWall("empty")),
     };
-    const bearTex = new Map<string, THREE.Texture>();
-    const bearTexture = (src: string) => {
-      if (!bearTex.has(src)) bearTex.set(src, tex(src));
-      return bearTex.get(src)!;
+    const glowTex = tex(drawGlow());
+    const shadowTex = tex(drawGlow("rgba(0,0,0,.75)", "rgba(0,0,0,0)"));
+    const glow = (color: string, size: number, opacity = 1) => {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
+      s.scale.setScalar(size);
+      return s;
     };
 
-    // ground, moon, stars, trees, pumpkins
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(80, 64), new THREE.MeshStandardMaterial({ color: "#1d1729", roughness: 1 }));
+    // ground, moon, stars
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(90, 64), new THREE.MeshStandardMaterial({ color: "#3a3256", roughness: 1 }));
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
-    const moon = new THREE.Mesh(new THREE.SphereGeometry(5, 32, 16), new THREE.MeshBasicMaterial({ color: "#f6e9c6", fog: false }));
-    moon.position.set(-45, 38, -70);
-    scene.add(moon);
+    const moonPos = new THREE.Vector3(-45, 38, -70);
+    const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(drawMoonCanvas(96)), fog: false, transparent: true }));
+    moon.scale.setScalar(30);
+    moon.position.copy(moonPos);
+    const moonHalo = glow("#c9c2ff", 60, 0.5);
+    moonHalo.material.fog = false;
+    moonHalo.position.copy(moonPos);
+    scene.add(moon, moonHalo);
     {
       const pts: number[] = [];
-      for (let i = 0; i < 700; i++) {
+      for (let i = 0; i < 900; i++) {
         const v = new THREE.Vector3().randomDirection().multiplyScalar(140);
         if (v.y > 5) pts.push(v.x, v.y, v.z);
       }
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-      scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: "#fff3dc", size: 0.5, fog: false })));
+      scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: "#fff3dc", size: 0.6, fog: false })));
     }
-    const pine = new THREE.MeshStandardMaterial({ color: "#0f0b18", roughness: 1 });
-    for (let i = 0; i < 70; i++) {
+
+    // far mountains and a ring of pines
+    const mountainMat = new THREE.MeshStandardMaterial({ color: "#2a2347", roughness: 1, flatShading: true });
+    for (let i = 0; i < 22; i++) {
+      const a = (i / 22) * Math.PI * 2;
+      const h = 14 + Math.random() * 16;
+      const m = new THREE.Mesh(new THREE.ConeGeometry(h * 0.9, h, 5), mountainMat);
+      m.position.set(Math.sin(a) * 75, h / 2 - 1, Math.cos(a) * 75);
+      m.rotation.y = Math.random() * 3;
+      scene.add(m);
+    }
+    const pine = new THREE.MeshStandardMaterial({ color: "#1b1630", roughness: 1 });
+    for (let i = 0; i < 110; i++) {
       const a = Math.random() * Math.PI * 2;
-      const r = 22 + Math.random() * 30;
-      const h = 4 + Math.random() * 6;
-      const t = new THREE.Mesh(new THREE.ConeGeometry(h * 0.3, h, 6), pine);
-      t.position.set(Math.sin(a) * r, h / 2, Math.cos(a) * r);
+      const r = 21 + Math.random() * 34;
+      const h = 4 + Math.random() * 7;
+      const t = new THREE.Group();
+      for (let k = 0; k < 3; k++) {
+        const c = new THREE.Mesh(new THREE.ConeGeometry(h * (0.32 - k * 0.07), h * 0.55, 7), pine);
+        c.position.y = h * (0.3 + k * 0.22);
+        t.add(c);
+      }
+      t.position.set(Math.sin(a) * r, 0, Math.cos(a) * r);
       scene.add(t);
     }
-    const pumpkinMat = new THREE.MeshStandardMaterial({ color: "#ff7a1a", emissive: "#ff5a00", emissiveIntensity: 0.35, roughness: 0.7 });
+
+    // dirt paths from the fire to each den
+    const pathMat = new THREE.MeshStandardMaterial({ color: "#4c3f5e", roughness: 1 });
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + Math.PI / 4;
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(1.6, RING - 4.8), pathMat);
+      p.rotation.set(-Math.PI / 2, 0, -a);
+      p.position.copy(dirAt(a).multiplyScalar((RING - 3.2) / 2 + 1)).setY(0.01);
+      scene.add(p);
+    }
+
+    // graveyard between the dens: tombstones, crosses, bare trees
+    const stoneMat = new THREE.MeshStandardMaterial({ color: "#8d88a3", roughness: 0.95 });
+    const barkMat = new THREE.MeshStandardMaterial({ color: "#2a2030", roughness: 1 });
+    for (let i = 0; i < 4; i++) {
+      const mid = (i * Math.PI) / 2; // halfway between two dens
+      for (let k = 0; k < 6; k++) {
+        const a = mid + (Math.random() - 0.5) * 0.5;
+        const r = 9 + Math.random() * 7;
+        const g = new THREE.Group();
+        if (k % 3 === 0) {
+          const v = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), stoneMat);
+          const h = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.16, 0.16), stoneMat);
+          v.position.y = 0.55;
+          h.position.y = 0.75;
+          g.add(v, h);
+        } else {
+          const slab = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.18), stoneMat);
+          const top = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.18, 16, 1, false, 0, Math.PI), stoneMat);
+          slab.position.y = 0.4;
+          top.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+          top.position.y = 0.8;
+          g.add(slab, top);
+        }
+        g.position.set(Math.sin(a) * r, 0, Math.cos(a) * r);
+        g.rotation.set((Math.random() - 0.5) * 0.25, a + Math.PI + (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.2);
+        scene.add(g);
+      }
+      // a crooked bare tree
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.28, 4, 6), barkMat);
+      trunk.position.y = 2;
+      trunk.rotation.z = 0.12;
+      tree.add(trunk);
+      for (let b = 0; b < 5; b++) {
+        const br = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.09, 1.6, 5), barkMat);
+        br.position.set(0, 2.4 + b * 0.35, 0);
+        br.rotation.set(0, b * 1.3, 0.9 + (b % 2) * 0.4);
+        br.translateY(0.7);
+        tree.add(br);
+      }
+      tree.position.copy(dirAt(mid).multiplyScalar(17.5));
+      scene.add(tree);
+    }
+
+    // picket fence round the yard
+    const fenceMat = new THREE.MeshStandardMaterial({ color: "#3d3550", roughness: 1 });
+    for (let i = 0; i < 120; i++) {
+      const a = (i / 120) * Math.PI * 2;
+      if (i % 30 < 3) continue; // gates
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.9 + (i % 2) * 0.15, 0.06), fenceMat);
+      post.position.copy(dirAt(a).multiplyScalar(19)).setY(0.45);
+      post.rotation.y = a;
+      scene.add(post);
+    }
+
+    // glowing lanterns on posts, pumpkins along the paths
+    const lanterns: THREE.Sprite[] = [];
+    const postMat = new THREE.MeshStandardMaterial({ color: "#241c2e" });
+    const lanternMat = new THREE.MeshBasicMaterial({ color: "#ffcf7a" });
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4 + Math.PI / 4 + (i % 2 ? 0.35 : -0.35);
+      const at = dirAt(a).multiplyScalar(i % 2 ? 6 : 15);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.2, 6), postMat);
+      post.position.copy(at).setY(1.1);
+      const lantern = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.28), lanternMat);
+      lantern.position.copy(at).setY(2.35);
+      const halo = glow("#ffb85c", 3.2, 0.8);
+      halo.position.copy(lantern.position);
+      lanterns.push(halo);
+      scene.add(post, lantern, halo);
+    }
+    const pumpkinMat = new THREE.MeshStandardMaterial({ color: "#ff7a1a", emissive: "#ff5a00", emissiveIntensity: 0.45, roughness: 0.7 });
     const stemMat = new THREE.MeshStandardMaterial({ color: "#3b5a1e" });
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2 + 0.2;
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + 0.2;
       const r = i % 2 ? 5.2 : 15.5;
       const p = new THREE.Group();
       const body = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 10), pumpkinMat);
       body.scale.y = 0.75;
       const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.25), stemMat);
       stem.position.y = 0.4;
-      p.add(body, stem);
+      const halo = glow("#ff7a1a", 1.6, 0.35);
+      halo.position.y = 0.3;
+      p.add(body, stem, halo);
       p.position.set(Math.sin(a) * r, 0.34, Math.cos(a) * r);
       scene.add(p);
     }
 
-    // campfire
-    const flames: THREE.Mesh[] = [];
+    // ground fog drifting between the dens
+    const fogPuffs: THREE.Sprite[] = [];
+    for (let i = 0; i < 26; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: "#b9b0e8", transparent: true, opacity: 0.09, depthWrite: false }));
+      s.scale.set(9 + Math.random() * 6, 2.2, 1);
+      const a = Math.random() * Math.PI * 2;
+      s.position.set(Math.sin(a) * (6 + Math.random() * 14), 0.6, Math.cos(a) * (6 + Math.random() * 14));
+      s.userData.a = a;
+      fogPuffs.push(s);
+      scene.add(s);
+    }
+
+    // bats circling overhead
+    const bats: THREE.Group[] = [];
+    const batMat = new THREE.MeshBasicMaterial({ color: "#0d0a14", side: THREE.DoubleSide });
+    const wing = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.7, 0.15, 0), new THREE.Vector3(0.35, -0.1, 0.25)]);
+    for (let i = 0; i < 9; i++) {
+      const b = new THREE.Group();
+      const l = new THREE.Mesh(wing, batMat);
+      const r = new THREE.Mesh(wing, batMat);
+      r.scale.x = -1;
+      b.add(l, r);
+      b.scale.setScalar(0.6);
+      b.userData = { r: 6 + Math.random() * 14, h: 7 + Math.random() * 6, s: 0.25 + Math.random() * 0.3, p: Math.random() * 6 };
+      bats.push(b);
+      scene.add(b);
+    }
+
+    // campfire: logs, stones, then a particle flame
     {
       const log = new THREE.MeshStandardMaterial({ color: "#4a2c18", roughness: 1 });
-      for (let i = 0; i < 4; i++) {
-        const l = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.8, 8), log);
-        l.rotation.set(Math.PI / 2 - 0.25, (i * Math.PI) / 4, 0);
-        l.position.y = 0.25;
+      for (let i = 0; i < 5; i++) {
+        const l = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 1.9, 8), log);
+        l.rotation.set(Math.PI / 2 - 0.35, (i * Math.PI * 2) / 5, 0);
+        l.position.y = 0.3;
         scene.add(l);
       }
-      const stone = new THREE.MeshStandardMaterial({ color: "#4a4552", roughness: 1 });
+      const stone = new THREE.MeshStandardMaterial({ color: "#5b5568", roughness: 1 });
       for (let i = 0; i < 12; i++) {
-        const s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28), stone);
-        s.position.set(Math.sin((i / 12) * Math.PI * 2) * 1.4, 0.15, Math.cos((i / 12) * Math.PI * 2) * 1.4);
+        const s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3), stone);
+        s.position.set(Math.sin((i / 12) * Math.PI * 2) * 1.45, 0.15, Math.cos((i / 12) * Math.PI * 2) * 1.45);
         scene.add(s);
       }
-      [["#ff5a1a", 0.7, 2.2], ["#ffa133", 0.5, 1.6], ["#ffe08a", 0.28, 1.0]].forEach(([c, r, h]) => {
-        const f = new THREE.Mesh(
-          new THREE.ConeGeometry(r as number, h as number, 10),
-          new THREE.MeshBasicMaterial({ color: c as string, transparent: true, opacity: 0.9 }),
-        );
-        f.position.y = 0.3 + (h as number) / 2;
-        flames.push(f);
-        scene.add(f);
-      });
     }
-    // embers rising off the fire
-    const EMBERS = 80;
+    // Each puff is born at the logs, rises, narrows and cools from white-yellow to red smoke.
+    const FLAME = 220;
+    const flameGeo = new THREE.BufferGeometry();
+    const fp = new Float32Array(FLAME * 3);
+    const fs = new Float32Array(FLAME);
+    for (let i = 0; i < FLAME; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * 0.6;
+      fp.set([Math.sin(a) * r, 0.35, Math.cos(a) * r], i * 3);
+      fs[i] = Math.random();
+    }
+    flameGeo.setAttribute("position", new THREE.BufferAttribute(fp, 3));
+    flameGeo.setAttribute("aSeed", new THREE.BufferAttribute(fs, 1));
+    const flameMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uPx: { value: 600 } },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexShader: /* glsl */ `
+        uniform float uTime; uniform float uPx;
+        attribute float aSeed;
+        varying float vLife;
+        void main() {
+          float life = fract(uTime * (0.7 + 0.5 * fract(aSeed * 13.7)) + aSeed);
+          vec3 p = position;
+          p.xz *= 1.0 - life * 0.9;
+          p.x += sin(uTime * 4.0 + aSeed * 40.0) * 0.12 * life;
+          p.z += cos(uTime * 3.3 + aSeed * 31.0) * 0.12 * life;
+          p.y += life * life * 2.4 + life * 0.6;
+          vLife = life;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_PointSize = (0.8 - life * 0.5) * uPx / -mv.z;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: /* glsl */ `
+        varying float vLife;
+        void main() {
+          float d = length(gl_PointCoord - 0.5);
+          float a = smoothstep(0.5, 0.0, d);
+          vec3 hot = vec3(1.0, 0.78, 0.32), mid = vec3(1.0, 0.45, 0.08), cool = vec3(0.55, 0.06, 0.05);
+          vec3 col = mix(hot, mid, smoothstep(0.0, 0.35, vLife));
+          col = mix(col, cool, smoothstep(0.35, 0.9, vLife));
+          gl_FragColor = vec4(col, a * smoothstep(0.0, 0.12, vLife) * (1.0 - vLife) * 0.26);
+        }`,
+    });
+    const flame = new THREE.Points(flameGeo, flameMat);
+    flame.frustumCulled = false;
+    scene.add(flame);
+    const fireGlow = glow("#ff6a1a", 7, 0.35);
+    fireGlow.position.y = 1.2;
+    scene.add(fireGlow);
+
+    // embers spiralling up off the fire
+    const EMBERS = 90;
     const emberPos = new Float32Array(EMBERS * 3);
     const emberGeo = new THREE.BufferGeometry();
     emberGeo.setAttribute("position", new THREE.BufferAttribute(emberPos, 3));
-    for (let i = 0; i < EMBERS; i++) emberPos[i * 3 + 1] = Math.random() * 8;
-    scene.add(new THREE.Points(emberGeo, new THREE.PointsMaterial({ color: "#ffb347", size: 0.12, transparent: true, opacity: 0.85 })));
-
+    for (let i = 0; i < EMBERS; i++) emberPos[i * 3 + 1] = Math.random() * 9;
+    scene.add(new THREE.Points(emberGeo, new THREE.PointsMaterial({ color: "#ffb347", size: 0.1, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })));
     // carousels
+    const shadowGeo = new THREE.PlaneGeometry(1, 1);
     const wallMats = new Map<string, THREE.MeshStandardMaterial>();
     const cream = new THREE.MeshStandardMaterial({ color: "#efe3c8", roughness: 0.95 });
     const threadMat = new THREE.LineBasicMaterial({ color: PINK });
@@ -236,23 +418,20 @@ export default function BearWorld(props: Props) {
         const right = dirAt(a + STEP / 2 - 0.02).multiplyScalar(R);
         const zero = new THREE.Vector3();
 
-        // the role scene, split across the two walls like an open pop-up spread
-        // unlit: printed paper should read clearly whatever the lights do
-        const panel = new THREE.MeshBasicMaterial({ map: sceneTex.empty, color: "#d9d0e0", side: THREE.DoubleSide });
+        // the room's wallpaper on the two walls; unlit so it reads whatever the lights do
+        const panel = new THREE.MeshBasicMaterial({ map: wallTex.empty, color: "#d9d0e0", side: THREE.DoubleSide });
         group.add(
           new THREE.Mesh(quad(left, zero, 0, 0.5, BASE, BASE + H), panel),
           new THREE.Mesh(quad(zero, right, 0.5, 1, BASE, BASE + H), panel),
         );
 
-        const bear = new THREE.Mesh(
-          new THREE.PlaneGeometry(1, 1),
-          new THREE.MeshStandardMaterial({ transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.9 }),
-        );
-        bear.position.copy(dir.clone().multiplyScalar(2.0));
-        bear.rotation.y = a;
-        bear.visible = false;
-        bear.userData = { team: ti, slot: i };
-        group.add(bear);
+        // contact shadow under the bear
+        const shadow = new THREE.Mesh(shadowGeo, new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.copy(dir.clone().multiplyScalar(2.0)).setY(BASE + 0.012);
+        shadow.scale.set(1.1, 0.8, 1);
+        shadow.visible = false;
+        group.add(shadow);
 
         const signCanvas = makeSignCanvas();
         const sign = new THREE.Mesh(
@@ -275,8 +454,8 @@ export default function BearWorld(props: Props) {
         pts.push(right.clone().setY(ty));
         group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), threadMat));
 
-        bays.push({ bear, sign, signCanvas, panel, key: "", art: null, role: null, status: null, hop: 0 });
-        hits.push(bear, sign);
+        bays.push({ bear: null, bearKey: "", shadow, room: null, sign, signCanvas, panel, key: "", role: null, status: null, hop: 0 });
+        hits.push(sign);
       }
 
       const banner = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(drawBanner(team)), transparent: true, depthTest: false }));
@@ -308,29 +487,35 @@ export default function BearWorld(props: Props) {
             drawSign(bay.signCanvas, team, ag, i);
             bay.sign.material.map!.needsUpdate = true;
           }
+          // the room follows the agent's role; an empty den keeps its starry wallpaper
           const role = ag?.role ?? null;
           if (role !== bay.role) {
             bay.role = role;
-            bay.panel.map = sceneTex[role ?? "empty"];
+            if (bay.room) den.group.remove(bay.room.group);
+            bay.room = role ? buildRoom(role) : null;
+            if (bay.room) {
+              bay.room.group.rotation.y = i * STEP;
+              bay.room.group.position.y = BASE;
+              den.group.add(bay.room.group);
+            }
+            bay.panel.map = wallTex[role ?? "empty"];
             bay.panel.needsUpdate = true;
           }
-          const art = ag?.art ?? null;
-          if (art !== bay.art) {
-            bay.art = art;
-            bay.bear.visible = !!art;
-            if (art) {
-              const t = bearTexture(art);
-              bay.bear.material.map = t;
-              bay.bear.material.needsUpdate = true;
-              const fit = () => {
-                const img = t.image as HTMLImageElement | undefined;
-                const aspect = img?.width ? img.width / img.height : 0.62;
-                bay.bear.scale.set(1.75 * aspect, 1.75, 1);
-                bay.bear.userData.baseY = BASE + 0.875;
-              };
-              fit();
-              if (!(t.image as HTMLImageElement | undefined)?.width) setTimeout(fit, 600);
+          // the bear: this team's species in the agent's costume
+          const bearKey = ag ? `${team.species}-${ag.costume}` : "";
+          if (bearKey !== bay.bearKey) {
+            bay.bearKey = bearKey;
+            if (bay.bear) den.group.remove(bay.bear);
+            bay.bear = ag ? buildBear(team.species, ag.costume) : null;
+            if (bay.bear) {
+              bay.bear.position.copy(dirAt(i * STEP).multiplyScalar(2.0));
+              bay.bear.traverse((o) => {
+                o.userData = { team: ti, slot: i };
+                if ((o as THREE.Mesh).isMesh) hits.push(o);
+              });
+              den.group.add(bay.bear);
             }
+            bay.shadow.visible = !!bay.bear;
           }
         });
       });
@@ -408,7 +593,10 @@ export default function BearWorld(props: Props) {
       if (e.key === "ArrowRight") turn(1);
       if (e.key === "ArrowLeft") turn(-1);
     };
+    const setPx = () => (flameMat.uniforms.uPx.value = (el.clientHeight * renderer.getPixelRatio()) / (2 * Math.tan((camera.fov * Math.PI) / 360)));
+    setPx();
     const onResize = () => {
+      setPx();
       camera.aspect = el.clientWidth / el.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(el.clientWidth, el.clientHeight);
@@ -432,7 +620,10 @@ export default function BearWorld(props: Props) {
       const t = clock.elapsedTime;
       const { focus, bay, hover } = live.current;
 
-      if (focus === null) {
+      if (live.current.intro) {
+        targetPos.set(0, 46, 72);
+        targetLook.set(0, 0, 0);
+      } else if (focus === null) {
         targetPos.set(0, 21, 19);
         targetLook.set(0, 0, 0);
         lamp.intensity += (0 - lamp.intensity) * ease(dt, 4);
@@ -468,22 +659,44 @@ export default function BearWorld(props: Props) {
         d.bays.forEach((b, k) => {
           const working = b.status === "thinking" || b.status === "tool";
           b.hop = Math.max(0, b.hop - dt * 2.2);
-          const baseY = (b.bear.userData.baseY as number) ?? BASE + 0.875;
-          b.bear.position.y = baseY + Math.sin(b.hop * Math.PI) * 0.5 + (working ? Math.abs(Math.sin(t * 5 + k)) * 0.06 : 0);
-          b.bear.rotation.z = working ? Math.sin(t * 3 + k) * 0.06 : Math.sin(t * 0.8 + k) * 0.015;
+          const jump = Math.sin(b.hop * Math.PI) * 0.5 + (working ? Math.abs(Math.sin(t * 5 + k)) * 0.06 : 0);
+          b.room?.tick(t);
           // signs swing with the turn
           b.sign.rotation.z = Math.sin(t * 1.3 + k) * 0.025 - d.spin * 0.08;
+          const body = b.bear;
+          if (!body) return;
+          body.position.y = BASE + jump;
+          // turn a little on the spot; a hop adds a full spin
+          body.rotation.y = k * STEP + Math.sin(t * 0.7 + k * 1.7) * 0.32 + (1 - b.hop) * (b.hop > 0 ? Math.PI * 2 : 0);
+          body.rotation.z = working ? Math.sin(t * 3 + k) * 0.06 : Math.sin(t * 0.8 + k) * 0.015;
+          const sh = 1 - jump * 0.8;
+          b.shadow.material.opacity = 0.85 * sh;
         });
       });
 
-      flames.forEach((f, i) => {
-        f.scale.set(1 + Math.sin(t * 9 + i) * 0.08, 1 + Math.sin(t * 7 + i * 2) * 0.15, 1);
-        f.rotation.y = t * (i + 1);
+      flameMat.uniforms.uTime.value = t;
+      const flicker = Math.sin(t * 11) * 0.5 + Math.sin(t * 17.3) * 0.3 + Math.sin(t * 5.1) * 0.2;
+      fire.intensity = 70 + flicker * 12;
+      fireGlow.material.opacity = 0.32 + flicker * 0.06;
+      fireGlow.scale.setScalar(7 + flicker * 0.5);
+      lanterns.forEach((l, i) => (l.material.opacity = 0.7 + Math.sin(t * 6 + i * 2) * 0.12));
+      fogPuffs.forEach((f, i) => {
+        const a = f.userData.a + t * 0.015 * (i % 2 ? 1 : -1);
+        const r = Math.hypot(f.position.x, f.position.z);
+        f.position.set(Math.sin(a) * r, 0.6, Math.cos(a) * r);
       });
-      fire.intensity = 55 + Math.sin(t * 11) * 6 + Math.sin(t * 17) * 4;
+      bats.forEach((b) => {
+        const { r, h, s, p } = b.userData as { r: number; h: number; s: number; p: number };
+        const a = t * s + p;
+        b.position.set(Math.sin(a) * r, h + Math.sin(t * 1.3 + p) * 0.8, Math.cos(a) * r);
+        b.rotation.y = a + Math.PI / 2;
+        const flap = Math.sin(t * 14 + p) * 0.7;
+        b.children[0].rotation.z = flap;
+        b.children[1].rotation.z = -flap;
+      });
       for (let i = 0; i < EMBERS; i++) {
         let y = emberPos[i * 3 + 1] + dt * (0.8 + (i % 5) * 0.25);
-        if (y > 8) y = 0.5;
+        if (y > 9) y = 1;
         const a = i * 2.4 + y * 0.6;
         const r = 0.2 + y * 0.12;
         emberPos[i * 3] = Math.sin(a) * r;

@@ -17,7 +17,7 @@ export type Agent = {
   status: Status;
   progress: number; // 0..100
   activity: string;
-  art: string; // paper cut-out PNG in /public/bears
+  art: string; // Canva picture used as the squad-bar avatar; the den shows a 3D bear
 };
 
 export type Team = {
@@ -137,9 +137,9 @@ export function useTeams() {
     setTeams((ts) => ts.map((t, i) => {
       if (i !== teamIndex || t.agents.length >= SLOTS) return t;
       const s = pick(SPARE);
-      // ponytail: a summoned bear borrows a teammate's cut-out until per-agent art generation exists
+      // ponytail: a summoned bear borrows a teammate's avatar picture until per-agent art exists
       const twin = pick(t.agents);
-      return { ...t, agents: [...t.agents, a(`${t.id}-${Date.now()}`, s.name, s.role, twin.costume, s.description, twin.art)] };
+      return { ...t, agents: [...t.agents, a(`${t.id}-${Date.now()}`, s.name, s.role, s.costume, s.description, twin.art)] };
     }));
   }, []);
 

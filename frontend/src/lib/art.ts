@@ -144,32 +144,90 @@ export function drawBanner(team: Team) {
   return c;
 }
 
-// Dark, starry den for empty slots.
-export function drawEmptyScene() {
-  const [c, ctx] = canvas(1024, 512);
-  const g = ctx.createLinearGradient(0, 0, 0, 512);
-  g.addColorStop(0, "#0d0a18");
-  g.addColorStop(1, "#241a38");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1024, 512);
-  for (let i = 0; i < 120; i++) {
-    ctx.fillStyle = `rgba(255,240,220,${Math.random() * 0.6})`;
-    ctx.fillRect(Math.random() * 1024, Math.random() * 380, 2, 2);
-  }
-  ctx.fillStyle = "#16112a";
-  ctx.beginPath();
-  ctx.moveTo(0, 512);
-  for (let x = 0; x <= 1024; x += 64) ctx.lineTo(x, 400 + Math.sin(x / 90) * 30);
-  ctx.lineTo(1024, 512);
-  ctx.fill();
-  grain(ctx, 1024, 512, 0.05);
-  return c;
-}
-
 export function drawWallPaper(color: string) {
   const [c, ctx] = canvas(256, 256);
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, 256, 256);
   grain(ctx, 256, 256, 0.1);
+  return c;
+}
+
+// soft round falloff for glows, fire puffs, fog and contact shadows
+export function drawGlow(inner = "rgba(255,255,255,1)", outer = "rgba(255,255,255,0)") {
+  const [c, ctx] = canvas(128, 128);
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, inner);
+  g.addColorStop(1, outer);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return c;
+}
+
+// The crescent moon from the intro, shared by the intro sky, the site's moon overlay and
+// the 3D sky: a cream disc with craters, its upper right bitten away, in a warm haze.
+const moonSprites = new Map<number, HTMLCanvasElement>();
+function crescent(r: number) {
+  const key = Math.round(r);
+  if (moonSprites.has(key)) return moonSprites.get(key)!;
+  const s = Math.ceil(r * 2.2);
+  const [c, ctx] = canvas(s, s);
+  const x = s / 2, y = s / 2;
+  const lit = ctx.createRadialGradient(x - r * 0.35, y + r * 0.25, r * 0.1, x, y, r);
+  lit.addColorStop(0, "#fbf6ea");
+  lit.addColorStop(1, "#d8ccbd");
+  ctx.fillStyle = lit;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  const craters: [number, number, number][] = [[-0.62, 0.05, 0.13], [-0.42, 0.42, 0.2], [-0.7, -0.3, 0.09], [-0.12, 0.66, 0.15], [-0.55, 0.62, 0.08], [-0.25, 0.3, 0.1], [0.12, 0.42, 0.11]];
+  for (const [cx, cy, cr] of craters) {
+    ctx.fillStyle = "rgba(160,142,132,.35)";
+    ctx.strokeStyle = "rgba(255,255,255,.3)";
+    ctx.lineWidth = Math.max(1, r * 0.02);
+    ctx.beginPath(); ctx.arc(x + cx * r, y + cy * r, cr * r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  // bite out the dark side with a soft edge
+  ctx.globalCompositeOperation = "destination-out";
+  const bx = x + r * 0.42, by = y - r * 0.24, br = r * 0.9;
+  const bite = ctx.createRadialGradient(bx, by, br * 0.96, bx, by, br * 1.02);
+  bite.addColorStop(0, "rgba(0,0,0,1)");
+  bite.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = bite;
+  ctx.beginPath(); ctx.arc(bx, by, br * 1.02, 0, Math.PI * 2); ctx.fill();
+  moonSprites.set(key, c);
+  return c;
+}
+
+// Draw the moon centred at (x, y) with radius r; t (seconds) drifts the cloud wisps across it.
+export function drawMoon(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t = 0, wisps = true) {
+  const haze = ctx.createRadialGradient(x - r * 0.2, y + r * 0.1, r * 0.5, x, y, r * 2.6);
+  haze.addColorStop(0, "rgba(255,226,210,.22)");
+  haze.addColorStop(1, "rgba(255,226,210,0)");
+  ctx.fillStyle = haze;
+  ctx.fillRect(x - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2);
+  const k = ctx.getTransform().a || 1; // render the sprite at device resolution
+  const sprite = crescent(r * k);
+  const sw = sprite.width / k;
+  ctx.drawImage(sprite, x - sw / 2, y - sw / 2, sw, sw);
+  if (!wisps) return;
+  // soft dark cloud wisps (gradient ellipses, so no canvas filter is needed)
+  [[-0.05, 0.55], [0.45, 0.6], [-0.4, 0.35]].forEach(([dy, a], i) => {
+    const span = r * 5;
+    const dx = (((t * r * 0.08 + i * r * 1.7) % span) + span) % span - span / 2;
+    const fade = 1 - Math.abs(dx) / (span / 2); // fade out at the ends so they never pop
+    ctx.save();
+    ctx.translate(x + dx, y + dy * r);
+    ctx.scale(1, 0.1);
+    const w = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.2);
+    w.addColorStop(0, `rgba(48,18,24,${a * fade})`);
+    w.addColorStop(1, "rgba(48,18,24,0)");
+    ctx.fillStyle = w;
+    ctx.beginPath(); ctx.arc(0, 0, r * 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+}
+
+// The moon alone on a transparent canvas, for textures.
+export function drawMoonCanvas(r: number) {
+  const [c, ctx] = canvas(Math.ceil(r * 5.2), Math.ceil(r * 5.2));
+  drawMoon(ctx, c.width / 2, c.height / 2, r, 0, false);
   return c;
 }

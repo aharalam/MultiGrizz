@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import BearWorld from "@/components/BearWorld";
+import Intro from "@/components/Intro";
+import Moon from "@/components/Moon";
 import SquadBar from "@/components/SquadBar";
 import { MY_TEAM, useTeams } from "@/lib/teams";
 
@@ -10,6 +12,8 @@ export default function Home() {
   const [bay, setBay] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
   const [touched, setTouched] = useState(false);
+  const [diving, setDiving] = useState(true); // camera waits high up until the intro opens
+  const [intro, setIntro] = useState(true);
 
   const shown = teams[focus ?? MY_TEAM];
   const agent = focus === null ? undefined : shown.agents[bay];
@@ -26,7 +30,10 @@ export default function Home() {
 
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-[#120d22] text-white">
+      {/* moon: lights the sky in every view */}
+      <Moon className="pointer-events-none absolute left-1/2 top-0 z-[1] h-[clamp(150px,24vmin,240px)] w-[clamp(150px,24vmin,240px)] -translate-x-1/2" />
       <BearWorld
+        intro={diving}
         teams={teams}
         focus={focus}
         bay={bay}
@@ -37,7 +44,9 @@ export default function Home() {
         onSummon={summon}
       />
 
-      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_160px_rgba(0,0,0,.75)]" />
+      {/* moonlight wash from the top, then a soft vignette */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_0%,rgba(190,180,255,.16),transparent_70%)] mix-blend-screen" />
+      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_140px_rgba(0,0,0,.6)]" />
 
       <div className="absolute left-4 top-4">
         <SquadBar
@@ -117,10 +126,11 @@ export default function Home() {
       )}
 
       {!touched && (
-        <div className="font-hand pointer-events-none absolute left-1/2 top-5 -translate-x-1/2 text-lg text-white/60">
+        <div className="font-hand pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 text-lg text-white/60">
           {focus === null ? "~ click a den to step inside ~" : "~ scroll, drag or use ← → to meet each bear · esc to leave ~"}
         </div>
       )}
+      {intro && <Intro onReveal={() => setDiving(false)} onDone={() => setIntro(false)} />}
     </main>
   );
 }
