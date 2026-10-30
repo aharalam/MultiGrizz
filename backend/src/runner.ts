@@ -93,7 +93,9 @@ export async function executeRun({ db, run, squad, agents, model, extraTools, bu
       for (let round = 0; round < 3; round++) {
         checkBudget();
         if (JSON.stringify(messages).length > 24000) throw new Error('Run context budget exhausted.');
-        const response = await model.chat(messages, runTools);
+        // Last round: withhold tools so the agent answers with what it has gathered.
+        if (round === 2) messages.push({ role: 'user', content: 'Tool budget used. Give your final answer now from the information above, without calling tools.' });
+        const response = round === 2 ? await model.chat(messages) : await model.chat(messages, runTools);
         checkBudget();
         messages.push(response);
         if (response.tool_calls?.length) {
