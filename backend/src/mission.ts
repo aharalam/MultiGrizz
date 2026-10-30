@@ -61,7 +61,7 @@ export async function runMission({ db, teamId, userId, brief, steps, model, trac
     if (!run) return;
     track(run.id, true);
     try {
-      await executeRun({ db, run, squad, agents: assignments.map((assignment: any) => assignment.agents), model, budgetMs: 420000, ...(key === 'venue' ? { extraTools: venueTools } : {}), handoffs: key !== 'logistics' });
+      await executeRun({ db, run, squad, agents: assignments.map((assignment: any) => assignment.agents), model, budgetMs: 420000, ...(key === 'venue' ? { extraTools: { ...venueTools, forAgent: (agent: { name: string }) => agent.name !== 'Event Manager' } } : {}), handoffs: key !== 'logistics' });
     } finally { track(run.id, false); }
     const finished = (await db.from('runs').select('status').eq('team_id', teamId).eq('id', run.id).single()).data;
     if (finished?.status !== 'completed') return;

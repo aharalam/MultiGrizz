@@ -21,6 +21,8 @@ function checked<T>(response: { data: T; error: unknown }): T {
 
 export type ExtraTools = {
   definitions: unknown[];
+  /** Limits the extra tools to some agents in the squad; all agents when omitted. */
+  forAgent?(agent: { name: string; role: string }): boolean;
   invoke(name: string, args: Record<string, unknown>): Promise<string | undefined>;
 };
 
@@ -85,10 +87,10 @@ export async function executeRun({ db, run, squad, agents, model, extraTools, bu
       throw new Error('Unknown tool.');
     }
     const baseTools = handoffs ? tools : [];
-    const runTools = extraTools ? [...baseTools, ...extraTools.definitions] : baseTools;
 
     for (const agent of assigned) {
       checkBudget();
+      const runTools = extraTools && (extraTools.forAgent?.(agent) ?? true) ? [...baseTools, ...extraTools.definitions] : baseTools;
       const entries = checked(await db.from('context_entries').select('id,kind,content,created_at,source_squad_id').eq('team_id', run.team_id).eq('squad_id', run.squad_id).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(50));
       if (!Array.isArray(entries)) throw new Error('Invalid context response.');
       const messages: Message[] = [
@@ -103,7 +105,12 @@ export async function executeRun({ db, run, squad, agents, model, extraTools, bu
         if (round === 2) messages.push({ role: 'user', content: 'Tool budget used. Give your final answer now from the information above, without calling tools.' });
         // A small local model occasionally returns a malformed reply; retry that call once.
         const ask = () => round === 2 || !runTools.length ? model.chat(messages) : model.chat(messages, runTools);
-        const response = await ask().catch((error) => { if (error instanceof Error && /invalid response/.test(error.message)) return ask(); throw error; });
+        const response = await ask().catch((error) => {
+          if (!(error instanceof Error && /invalid response/.test(error.message))) throw error;
+          // Usually an empty reply after a tool result: ask once more for plain text, without tools.
+          messages.push({ role: 'user', content: 'Reply in plain text with your final answer for this task.' });
+          return model.chat(messages);
+        });
         checkBudget();
         messages.push(response);
         if (response.tool_calls?.length) {
