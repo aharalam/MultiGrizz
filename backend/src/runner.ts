@@ -24,7 +24,7 @@ export type ExtraTools = {
   invoke(name: string, args: Record<string, unknown>): Promise<string | undefined>;
 };
 
-export async function executeRun({ db, run, squad, agents, model, extraTools, budgetMs = 180000 }: {
+export async function executeRun({ db, run, squad, agents, model, extraTools, budgetMs = 180000, handoffs = true }: {
   db: SupabaseClient;
   run: any;
   squad: any;
@@ -32,6 +32,8 @@ export async function executeRun({ db, run, squad, agents, model, extraTools, bu
   model: OllamaClient;
   extraTools?: ExtraTools;
   budgetMs?: number;
+  /** False for a final squad that has nobody to hand off to: squad tools are withheld. */
+  handoffs?: boolean;
 }): Promise<void> {
   const started = Date.now();
   let claimed = false;
@@ -82,7 +84,8 @@ export async function executeRun({ db, run, squad, agents, model, extraTools, bu
       }
       throw new Error('Unknown tool.');
     }
-    const runTools = extraTools ? [...tools, ...extraTools.definitions] : tools;
+    const baseTools = handoffs ? tools : [];
+    const runTools = extraTools ? [...baseTools, ...extraTools.definitions] : baseTools;
 
     for (const agent of assigned) {
       checkBudget();
@@ -99,7 +102,7 @@ export async function executeRun({ db, run, squad, agents, model, extraTools, bu
         // Last round: withhold tools so the agent answers with what it has gathered.
         if (round === 2) messages.push({ role: 'user', content: 'Tool budget used. Give your final answer now from the information above, without calling tools.' });
         // A small local model occasionally returns a malformed reply; retry that call once.
-        const ask = () => round === 2 ? model.chat(messages) : model.chat(messages, runTools);
+        const ask = () => round === 2 || !runTools.length ? model.chat(messages) : model.chat(messages, runTools);
         const response = await ask().catch((error) => { if (error instanceof Error && /invalid response/.test(error.message)) return ask(); throw error; });
         checkBudget();
         messages.push(response);

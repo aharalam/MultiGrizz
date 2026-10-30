@@ -6,7 +6,9 @@ import type { useLive } from "@/lib/live";
 const BRIEF = "Organize a networking event for 50 people on December 12 at 6 PM near Oakland University in Rochester Hills, Michigan. Find an available venue, create a promotional flyer and video, invite 50 people through email with an option to save the event to their calendars, and set up a reminder 24 hours before the event. If the venue is unavailable, find alternative dates and suggest the best option.";
 
 // Flyer HTML is model-written: shown only in a sandboxed iframe with scripts disabled.
-function flyerOf(text: string): string | null {
+function flyerOf(raw: string): string | null {
+  // The model sometimes writes its HTML entity-escaped (&lt;div …); decode before matching.
+  const text = raw.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
   const match = /<(?:!doctype|html|div|section|body)[\s\S]*<\/(?:html|div|section|body)>/i.exec(text);
   return match ? match[0] : null;
 }
@@ -72,7 +74,7 @@ export default function MissionPanel({ live, focus }: { live: ReturnType<typeof 
             <div className="font-pixel mb-1 text-sm text-[#fff3dc]">{view.squad.name} context</div>
             {view.entries.length === 0 && <p className="font-hand text-white/60">Nothing yet. This squad only sees its own notes, results, and handoffs.</p>}
             {[...view.entries].reverse().map((entry) => {
-              const flyer = entry.kind === "result" ? flyerOf(entry.content) : null;
+              const flyer = entry.kind !== "note" ? flyerOf(entry.content) : null;
               return (
                 <article key={entry.id} className="mb-2 rounded-md border border-white/10 bg-black/45 p-2">
                   <div className={`font-pixel text-[11px] uppercase ${KIND_STYLE[entry.kind]}`}>
