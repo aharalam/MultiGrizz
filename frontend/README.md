@@ -8,4 +8,4 @@ Keep this application's package.json, lockfile, source, tests, and configuration
 
 Connect to the backend over HTTP using NEXT_PUBLIC_API_BASE_URL. Keep Gemma credentials and privileged database keys out of this application. API payloads are coordinated in `../contracts/`.
 
-Product boundaries: Party contains player teams. All players within a player team share access to its agent pool, squads, context, tasks, and results. Other player teams cannot inspect them. Each agent squad has separate working context; explicit handoffs share context within the player team.
+Product boundaries: Party and player team mean the same thing. All players within a team share access to its agent pool, squads, context, tasks, and results. Other player teams cannot inspect them. Each agent squad has separate working context; explicit handoffs share context within the player team. See `../contracts/backend-api.md` for the implemented backend contract.

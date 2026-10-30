@@ -14,7 +14,7 @@ Frontend and backend are independent applications in one repository. Each gets i
 After accepting the owner's GitHub invitation, clone the repository and choose your branch:
 
 ```powershell
-git clone https://github.com/aharalam/grizzhacks-oakland-university.git
+git clone https://github.com/aharalam/MultiGrizz.git grizzhacks-oakland-university
 cd grizzhacks-oakland-university
 git switch frontend
 # Backend teammates use: git switch backend

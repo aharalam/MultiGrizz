@@ -1,17 +1,14 @@
 # Current state
 
-- Project: MultiGrizz, at GrizzHacks Oakland University. GitHub: https://github.com/aharalam/MultiGrizz.
-- Current demo slice: None.
-- Available: Project-local competition, engineering, and design skill files and operating instructions.
-- Active direction: Multi-agent, multiplayer agentic ecosystem. PantryGap is saved for later in `ideas/PantryGap.md`.
-- Repository preparation: Independent frontend/backend directory boundaries, example environment files, shared contracts directory, and collaboration guide added. No runnable application yet. Private GitHub repository created at https://github.com/aharalam/grizzhacks-oakland-university. Scoped command approvals permit network and Git metadata writes; GitHub authentication is valid. Main is the integration branch; frontend/backend work branches start from the same initial commit. See CONTRIBUTING.md for merge workflow.
-- Next: Define the new direction's core problem, users, multiplayer loop, and Gemma role; confirm current submission rules; then agree on MVP and architecture/demo plan.
-- Research completed: Visible site clues, public event listing mismatch, local pantry problem evidence, and documented Gemma hosting options recorded in BRIEF.md.
-- Local AI: Ollama 0.40.13 installed; gemma4:e2b downloaded. Loopback-only server started with cloud features disabled. Real local inference returned LOCAL_READY in 10.3 seconds including loading. Backend `.env` and example now use Ollama; no Google API key required. See backend/LOCAL_AI.md.
-- Context correction: Party and player team are synonymous. Squads within a team have separate contexts; every player in that team can inspect its data. Other teams are isolated.
-- Supabase: Both API keys accepted by their respective Auth/Data API checks. Direct database endpoint is IPv6-only and unreachable from this network (ENETUNREACH). Need an IPv4 session-pooler connection string for SQL migrations. Credentials remain in ignored backend/.env.
-- Known problems/blockers: New direction selected but MVP undefined; current public event rules conflict with team's on-site schedule; direct SQL connectivity pending. Application not scaffolded yet.
-- Setup: Active Superpowers skills are available. Project hook approval and runtime setup have not been verified for this checkout.
-- Working/deployed state: No product or deployment yet.
-
-Update this file after each meaningful working slice or material change.
+- Project: MultiGrizz at GrizzHacks Oakland University. Repository: https://github.com/aharalam/MultiGrizz. Work branch: backend.
+- Working slice: Authenticated players create/join teams, share agent pools, assign squads, add context, hand off findings, and run bounded local Gemma tasks with persisted results. Other player teams are isolated. Team and party are synonyms.
+- Backend: Standalone TypeScript/Fastify API at http://127.0.0.1:4000. Start from backend with npm run dev, or npm run build then npm start. Frontend remains independently owned.
+- Local AI: Ollama 0.40.13, gemma4:e2b, loopback endpoint with cloud features disabled. No Google API key. Real model tool-call round trip and full persisted agent run passed.
+- Supabase: Initial migration applied by team. HTTPS Data API and Auth work; no direct SQL or paid IPv4 needed for runtime. Caller-scoped requests + RLS + composite foreign keys enforce tenancy. Server secret used only for readiness probe and explicit test-user setup.
+- Verification: 52 isolated tests pass, strict TypeScript build passes. Live 3-user integration verified shared access, outsider denial, handoffs, local model result persistence, and authorized Realtime handoff delivery. Temporary users and their owned data were removed. Ready endpoint reports model/database ready.
+- Realtime lesson: SUBSCRIBED can precede replication readiness. Use wait:true or await postgres_changes system readiness, then refetch current state. Contract documents this and polling fallback.
+- Limits: Single-process in-memory queue; no durable worker or live cancellation. Recover confirmed interrupted persisted runs via API. Context uses bounded recent history; timestamp-only paging can skip equal-timestamp boundary rows. Model runs have per-call and elapsed guards; late output is not persisted as success.
+- Next: Frontend pair integrates contracts/backend-api.md; test the actual two-browser UI and agree on demo network access. Backend binds loopback by default; a hosted frontend cannot reach another machine's localhost.
+- Deferred: PantryGap in ideas/PantryGap.md. No automatic product pivot or resume.
+- Competition uncertainty: Public website schedule conflicts with team's stated 5:15 pm cutoff; use on-site instructions. Final demo/pitch approval remains pending.
+- Agent setup: Active Superpowers available. Project hook trust not confirmed; no judge-facing UI work performed in this backend slice.
