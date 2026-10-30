@@ -7,6 +7,7 @@ import type { Config } from './config.js';
 import { OllamaClient } from './ollama.js';
 import { RunQueue } from './queue.js';
 import { executeRun } from './runner.js';
+import { createEventSquads, runMission } from './mission.js';
 
 declare module 'fastify' {
   interface FastifyRequest { actor: { id: string; db: SupabaseClient } | null }
@@ -202,6 +203,27 @@ export function buildApp(options: { config: Config; supabaseFetch?: typeof fetch
       throw new HttpError(503, 'QUEUE_FULL', 'The local model queue is full. Try again shortly.');
     }
     return reply.code(202).send({ data: run });
+  });
+  app.post('/teams/:teamId/event-squads', { config: { rateLimit: { max: 4, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const { teamId } = teamParams.parse(request.params); const { db } = await authorize(request, teamId);
+    return reply.code(201).send({ data: await createEventSquads(db, teamId, database) });
+  });
+  app.post('/teams/:teamId/missions', { config: { rateLimit: { max: 4, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const body = z.object({ brief: z.string().trim().min(1).max(1500), venue_squad_id: uuid, promo_squad_id: uuid, logistics_squad_id: uuid }).strict().parse(request.body);
+    const { teamId } = teamParams.parse(request.params); const { db } = await authorize(request, teamId);
+    const ids = [body.venue_squad_id, body.promo_squad_id, body.logistics_squad_id];
+    if (new Set(ids).size !== 3) throw new HttpError(400, 'INVALID_TARGET', 'Choose three different squads.');
+    const found = database(await db.from('squads').select('id').eq('team_id', teamId).in('id', ids)) ?? [];
+    if (found.length !== 3) throw new HttpError(404, 'NOT_FOUND', 'Squad not found in this team.');
+    const active = database(await db.from('runs').select('id').eq('team_id', teamId).in('squad_id', ids).in('status', ['queued', 'running']).limit(1)) ?? [];
+    if (active.length) throw new HttpError(409, 'CONFLICT', 'One of these squads already has an active run.');
+    if (queue.pending >= 8) throw new HttpError(503, 'QUEUE_FULL', 'The local model queue is full. Try again shortly.');
+    const note = database(await db.from('context_entries').insert({ team_id: teamId, squad_id: body.venue_squad_id, kind: 'note', content: `Event brief: ${body.brief}`, created_by: request.actor!.id }).select().single());
+    const steps = { venue: body.venue_squad_id, promo: body.promo_squad_id, logistics: body.logistics_squad_id };
+    const accepted = queue.enqueue(() => runMission({ db, teamId, userId: request.actor!.id, brief: body.brief, steps, model,
+      track: (runId, on) => { if (on) scheduledRuns.add(runId); else scheduledRuns.delete(runId); } }));
+    if (!accepted) throw new HttpError(503, 'QUEUE_FULL', 'The local model queue is full. Try again shortly.');
+    return reply.code(202).send({ data: { status: 'queued', brief_entry_id: note.id, steps: body } });
   });
   app.get('/teams/:teamId/squads/:squadId/runs', async request => {
     const { teamId, squadId, actor } = await squad(request);

@@ -18,12 +18,19 @@ function checked<T>(response: { data: T; error: unknown }): T {
   return response.data;
 }
 
-export async function executeRun({ db, run, squad, agents, model }: {
+export type ExtraTools = {
+  definitions: unknown[];
+  invoke(name: string, args: Record<string, unknown>): Promise<string | undefined>;
+};
+
+export async function executeRun({ db, run, squad, agents, model, extraTools, budgetMs = 180000 }: {
   db: SupabaseClient;
   run: any;
   squad: any;
   agents: any[];
   model: OllamaClient;
+  extraTools?: ExtraTools;
+  budgetMs?: number;
 }): Promise<void> {
   const started = Date.now();
   let claimed = false;
@@ -31,7 +38,7 @@ export async function executeRun({ db, run, squad, agents, model }: {
     .eq('id', run.id).eq('team_id', run.team_id).eq('squad_id', run.squad_id).eq('status', from).select('id').maybeSingle();
   // Await in-flight requests rather than abandoning work. With the caller's 90s
   // model timeout, a call started near 180s can delay failure until roughly 270s.
-  const checkBudget = () => { if (Date.now() - started > 180000) throw new Error('Run budget exhausted.'); };
+  const checkBudget = () => { if (Date.now() - started > budgetMs) throw new Error('Run budget exhausted.'); };
   try {
     z.object({ id: uuid, team_id: uuid, squad_id: uuid, created_by: uuid, goal: z.string().trim().min(1).max(2000) }).parse(run);
     z.object({ id: uuid, team_id: uuid, goal: z.string().max(8000) }).parse(squad);
@@ -60,8 +67,19 @@ export async function executeRun({ db, run, squad, agents, model }: {
         checked(await db.from('context_entries').insert({ team_id: run.team_id, squad_id: input.target_squad_id, source_squad_id: run.squad_id, kind: 'handoff', content: input.content, run_id: run.id, created_by: run.created_by }));
         return JSON.stringify({ untrusted_reference: true, shared: true, target_squad_id: input.target_squad_id });
       }
+      if (extraTools) {
+        checkBudget();
+        // External research failures go back to the agent instead of failing the whole run.
+        try {
+          const output = await extraTools.invoke(call.function.name, call.function.arguments);
+          if (output !== undefined) return output;
+        } catch (error) {
+          return JSON.stringify({ untrusted_reference: true, error: error instanceof Error ? error.message.slice(0, 200) : 'Tool failed.' });
+        }
+      }
       throw new Error('Unknown tool.');
     }
+    const runTools = extraTools ? [...tools, ...extraTools.definitions] : tools;
 
     for (const agent of assigned) {
       checkBudget();
@@ -75,7 +93,7 @@ export async function executeRun({ db, run, squad, agents, model }: {
       for (let round = 0; round < 3; round++) {
         checkBudget();
         if (JSON.stringify(messages).length > 24000) throw new Error('Run context budget exhausted.');
-        const response = await model.chat(messages, tools);
+        const response = await model.chat(messages, runTools);
         checkBudget();
         messages.push(response);
         if (response.tool_calls?.length) {

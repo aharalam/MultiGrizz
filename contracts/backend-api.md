@@ -62,6 +62,19 @@ Run: `{id,team_id,squad_id,created_by,goal,status,error,created_at,updated_at}`.
 
 The backend supplies team/squad IDs and author fields. Do not submit these fields in bodies. No shell or arbitrary external web tools are exposed. Tools are bounded to listing same-team squads and publishing a finding to a verified same-team target.
 
+## Event-planning demo (squads + missions)
+
+| Method | Path | JSON body / result |
+| --- | --- | --- |
+| POST | `/teams/:teamId/event-squads` | No body → 201 `{agents, venue_squad_id, promo_squad_id, logistics_squad_id}`. Creates Venue Squad (Event Manager, Scout, Budget Keeper), Promo Squad (Copywriter, Art Director), Logistics Squad (Scheduler, Event Manager). Call once per team; calling again creates duplicates. |
+| POST | `/teams/:teamId/missions` | `{brief, venue_squad_id, promo_squad_id, logistics_squad_id}` → 202 `{status:"queued", brief_entry_id, steps}`. Brief max 1500 characters. 409 if any of the three squads has an active run. |
+
+A mission posts the brief as a `note` in the Venue Squad, then runs the squads one after another, Venue → Promo → Logistics, with every assigned agent in each. Each step creates a normal run, so track progress with `GET /teams/:teamId/squads/:squadId/runs` (or Realtime on `runs`) for each squad. Later steps' runs appear only once earlier steps complete. A failed step stops the mission.
+
+Within a squad, agents run in position order and each sees teammates' earlier results. Squads share only through `handoff` entries. Agents create them with `share_finding`; if a step completes without handing off to the next squad, the backend forwards its results as a handoff whose content starts `[automatic handoff: <squad> results]`. Show that label so judges can tell agent handoffs from automatic ones.
+
+Venue Squad agents also get `find_venues` (OpenStreetMap, no key) and `read_page` (public HTTPS page text, 3000 characters). The final package is the Logistics Squad's `result` entries. Emails and invites are drafts marked for player approval; nothing is sent. The Art Director's flyer is model-written HTML: render it only in `<iframe sandbox srcdoc=...>` without `allow-scripts`, never with innerHTML. Mission steps have a 420-second elapsed guard each; expect several minutes on CPU.
+
 ## Live updates
 
 Frontend can use Supabase Postgres Changes with its signed-in session. Subscribe to INSERT/UPDATE on `runs`, `context_entries`, `agents`, `squads`, and `squad_agents` using a `team_id=eq.<teamId>` filter and refetch relevant API data after events. Database RLS determines visible rows. Do not use unauthenticated public broadcast rooms for private team content. For membership/team changes, refetch `/teams` and the member list.
