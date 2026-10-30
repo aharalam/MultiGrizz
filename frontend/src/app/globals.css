@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-pixel: "Pixelify Sans", monospace;
+  --font-hand: "Gaegu", cursive;
+}
+
+body {
+  background: #120d22;
+  color: #fff;
+}
+
