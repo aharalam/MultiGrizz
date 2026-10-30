@@ -13,7 +13,8 @@
 
 ## Product
 
-- CONFIRMED team direction: A multi-agent, multiplayer agentic ecosystem. A party contains player teams; each player team's members can access everything within their team. Other player teams cannot inspect its agent pool or context. Agent squads within a player team have separate working context and explicit handoffs. Specific objective, agent roles, and Gemma integration remain undefined.
+- CONFIRMED team direction: A multi-agent, multiplayer agentic ecosystem. Party and player team mean the same thing; no separate party entity. Each player team's members can access everything within their team. Other player teams cannot inspect its agent pool or context. Agent squads within a player team have separate working context and explicit handoffs. Specific objective and agent roles remain undefined.
+- CONFIRMED inference: Gemma must run locally. Use Ollama and test gemma4:e2b first; model performance not yet verified. No Google API key needed and no silent hosted fallback. Supabase remains the shared remote database.
 - CONFIRMED collaboration: Four developers, two frontend and two backend. Independent applications in one repository, branches `frontend` and `backend`, eventually merged into `main`.
 - Parked for future build: [PantryGap](../ideas/PantryGap.md), including research, proposed MVP, demo, model role, risks, and validation questions. Do not resume it automatically.
 - Competition alignment and approved MVP: Pending definition of the new direction.

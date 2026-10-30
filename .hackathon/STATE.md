@@ -1,13 +1,16 @@
 # Current state
 
-- Project: GrizzHacks Oakland University.
+- Project: MultiGrizz, at GrizzHacks Oakland University. GitHub: https://github.com/aharalam/MultiGrizz.
 - Current demo slice: None.
 - Available: Project-local competition, engineering, and design skill files and operating instructions.
 - Active direction: Multi-agent, multiplayer agentic ecosystem. PantryGap is saved for later in `ideas/PantryGap.md`.
 - Repository preparation: Independent frontend/backend directory boundaries, example environment files, shared contracts directory, and collaboration guide added. No runnable application yet. Private GitHub repository created at https://github.com/aharalam/grizzhacks-oakland-university. Scoped command approvals permit network and Git metadata writes; GitHub authentication is valid. Main is the integration branch; frontend/backend work branches start from the same initial commit. See CONTRIBUTING.md for merge workflow.
 - Next: Define the new direction's core problem, users, multiplayer loop, and Gemma role; confirm current submission rules; then agree on MVP and architecture/demo plan.
 - Research completed: Visible site clues, public event listing mismatch, local pantry problem evidence, and documented Gemma hosting options recorded in BRIEF.md.
-- Known problems/blockers: New direction selected but MVP undefined; current public event rules conflict with team's on-site schedule; model access not yet tested.
+- Local AI: Ollama 0.40.13 installed; gemma4:e2b downloaded. Loopback-only server started with cloud features disabled. Real local inference returned LOCAL_READY in 10.3 seconds including loading. Backend `.env` and example now use Ollama; no Google API key required. See backend/LOCAL_AI.md.
+- Context correction: Party and player team are synonymous. Squads within a team have separate contexts; every player in that team can inspect its data. Other teams are isolated.
+- Supabase: Both API keys accepted by their respective Auth/Data API checks. Direct database endpoint is IPv6-only and unreachable from this network (ENETUNREACH). Need an IPv4 session-pooler connection string for SQL migrations. Credentials remain in ignored backend/.env.
+- Known problems/blockers: New direction selected but MVP undefined; current public event rules conflict with team's on-site schedule; direct SQL connectivity pending. Application not scaffolded yet.
 - Setup: Active Superpowers skills are available. Project hook approval and runtime setup have not been verified for this checkout.
 - Working/deployed state: No product or deployment yet.
 
