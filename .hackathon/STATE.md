@@ -1,14 +1,16 @@
 # Current state
 
-- Project: GrizzHacks Oakland University.
-- Current demo slice: None.
-- Available: Project-local competition, engineering, and design skill files and operating instructions.
-- Active direction: Multi-agent, multiplayer agentic ecosystem. PantryGap is saved for later in `ideas/PantryGap.md`.
-- Repository preparation: Independent frontend/backend directory boundaries, example environment files, shared contracts directory, and collaboration guide added. No runnable application yet. Private GitHub repository: https://github.com/aharalam/MultiGrizz. Local folder remains `grizzhacks-oakland-university`. Scoped command approvals permit network and Git metadata writes; GitHub authentication is valid. Main is the integration branch; frontend/backend work branches start from the same initial commit. See CONTRIBUTING.md for merge workflow.
-- Next: Define the new direction's core problem, users, multiplayer loop, and Gemma role; confirm current submission rules; then agree on MVP and architecture/demo plan.
-- Research completed: Visible site clues, public event listing mismatch, local pantry problem evidence, and documented Gemma hosting options recorded in BRIEF.md.
-- Known problems/blockers: New direction selected but MVP undefined; current public event rules conflict with team's on-site schedule; model access not yet tested.
-- Setup: Active Superpowers skills are available. Project hook approval and runtime setup have not been verified for this checkout.
-- Working/deployed state: No product or deployment yet.
-
-Update this file after each meaningful working slice or material change.
+- Project: MultiGrizz at GrizzHacks Oakland University. Repository: https://github.com/aharalam/MultiGrizz. Integrated on main (frontend + backend). Live demo steps: DEMO.md.
+- Working slice: Authenticated players create/join teams, share agent pools, assign squads, add context, hand off findings, and run bounded local Gemma tasks with persisted results. Other player teams are isolated. Team and party are synonyms.
+- Backend: Standalone TypeScript/Fastify API at http://127.0.0.1:4000. Start from backend with npm run dev, or npm run build then npm start. Frontend remains independently owned.
+- Local AI: Ollama 0.40.13, gemma4:e2b, loopback endpoint with cloud features disabled. No Google API key. Real model tool-call round trip and full persisted agent run passed.
+- Supabase: Initial migration applied by team. HTTPS Data API and Auth work; no direct SQL or paid IPv4 needed for runtime. Caller-scoped requests + RLS + composite foreign keys enforce tenancy. Server secret used only for readiness probe and explicit test-user setup.
+- Verification: 52 isolated tests pass, strict TypeScript build passes. Live 3-user integration verified shared access, outsider denial, handoffs, local model result persistence, and authorized Realtime handoff delivery. Temporary users and their owned data were removed. Ready endpoint reports model/database ready.
+- Realtime lesson: SUBSCRIBED can precede replication readiness. Use wait:true or await postgres_changes system readiness, then refetch current state. Contract documents this and polling fallback.
+- Limits: Single-process in-memory queue; no durable worker or live cancellation. Recover confirmed interrupted persisted runs via API. Context uses bounded recent history; timestamp-only paging can skip equal-timestamp boundary rows. Model runs have per-call and elapsed guards; late output is not persisted as success.
+- Event demo slice: `POST /teams/:teamId/event-squads` seeds three multi-agent squads; `POST /teams/:teamId/missions` runs Venue → Promo → Logistics from one brief with agent handoffs (labeled automatic fallback) and keyless OpenStreetMap venue search plus `read_page`. Frontend bear dens show live squads; mission panel signs in, creates/joins teams, launches, and shows each squad's private context with sandboxed flyer. 57 tests, backend build, frontend typecheck/lint/build pass. Live: Venue and Promo completed with real venues and agent-made handoffs; Logistics failed on a self-handoff (fixed) and a later empty model reply (fixed); a full three-squad run after the final fixes has NOT completed yet. Design: docs/superpowers/specs/2026-10-30-event-squads-design.md. Deferred: artifacts/approve endpoint, code-built .ics, backend flyer sanitizing.
+- This laptop: Ollama 0.40.13 + gemma4:e2b installed and verified (first call 13.4 s incl. load).
+- Next: Run DEMO.md end to end on the demo laptop; manual two-browser test still pending. Backend binds loopback by default; a hosted frontend cannot reach another machine's localhost.
+- Deferred: PantryGap in ideas/PantryGap.md. No automatic product pivot or resume.
+- Competition uncertainty: Public website schedule conflicts with team's stated 5:15 pm cutoff; use on-site instructions. Final demo/pitch approval remains pending.
+- Agent setup: Active Superpowers available. Project hook trust not confirmed; no judge-facing UI work performed in this backend slice.
