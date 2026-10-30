@@ -53,7 +53,7 @@ export class OllamaClient {
       body: JSON.stringify({
         model: this.model, messages, ...(tools ? { tools } : {}),
         stream: false, think: false,
-        options: { num_ctx: 4096, num_predict: 512, temperature: 0.2 },
+        options: { num_ctx: 4096, num_predict: 1024, temperature: 0.2 },
       }),
     });
     if (!isObject(payload) || payload.model !== this.model || payload.error || !isObject(payload.message)) {

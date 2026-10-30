@@ -98,12 +98,15 @@ export async function executeRun({ db, run, squad, agents, model, extraTools, bu
         if (JSON.stringify(messages).length > 24000) throw new Error('Run context budget exhausted.');
         // Last round: withhold tools so the agent answers with what it has gathered.
         if (round === 2) messages.push({ role: 'user', content: 'Tool budget used. Give your final answer now from the information above, without calling tools.' });
-        const response = round === 2 ? await model.chat(messages) : await model.chat(messages, runTools);
+        // A small local model occasionally returns a malformed reply; retry that call once.
+        const ask = () => round === 2 ? model.chat(messages) : model.chat(messages, runTools);
+        const response = await ask().catch((error) => { if (error instanceof Error && /invalid response/.test(error.message)) return ask(); throw error; });
         checkBudget();
         messages.push(response);
         if (response.tool_calls?.length) {
           if (response.tool_calls.length > 2) throw new Error('Too many tool calls.');
           if (round === 2) throw new Error('Tool round limit exhausted.');
+          for (const call of response.tool_calls) console.log(`Run ${run.id} ${agent.name} tool ${call.function.name} ${JSON.stringify(call.function.arguments).slice(0, 160)}`);
           for (const call of response.tool_calls) messages.push({ role: 'tool', tool_name: call.function.name, content: await invokeTool(call) });
         } else {
           result = response.content.trim();

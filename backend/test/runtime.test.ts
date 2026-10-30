@@ -85,7 +85,7 @@ test('local Ollama receives bounded non-streaming messages and returns the actua
     assert.equal(requestBody?.model, 'gemma4:e2b');
     assert.equal(requestBody?.stream, false);
     assert.equal(requestBody?.think, false);
-    assert.equal(requestBody?.options.num_predict, 512);
+    assert.equal(requestBody?.options.num_predict, 1024);
     assert.equal(requestBody?.options.num_ctx, 4096);
     assert.deepEqual(requestBody?.messages, [{ role: 'user', content: 'Review the findings.' }]);
   } finally { await fixture.close(); }
