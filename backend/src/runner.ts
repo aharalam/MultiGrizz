@@ -112,7 +112,9 @@ export async function executeRun({ db, run, squad, agents, model, extraTools, bu
     }
     checkBudget();
     if (!checked(await update({ status: 'completed', error: null }, 'running'))) throw new Error('Run completion was not persisted.');
-  } catch {
+  } catch (error) {
+    // Server-side only: the reason helps diagnose model/tool failures; clients still get the safe message.
+    console.error(`Agent run ${run?.id ?? 'unknown'} failed: ${error instanceof Error ? error.message.slice(0, 300) : 'unknown error'}`);
     try {
       if (!checked(await update({ status: 'failed', error: safeFailure }, claimed ? 'running' : 'queued'))) throw new Error('Failure state was not persisted.');
     } catch {

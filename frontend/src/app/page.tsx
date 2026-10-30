@@ -3,11 +3,17 @@ import { useState } from "react";
 import BearWorld from "@/components/BearWorld";
 import Intro from "@/components/Intro";
 import Moon from "@/components/Moon";
+import MissionPanel from "@/components/MissionPanel";
 import SquadBar from "@/components/SquadBar";
+import { useLive } from "@/lib/live";
 import { MY_TEAM, useTeams } from "@/lib/teams";
 
 export default function Home() {
-  const { teams, summon } = useTeams();
+  const mock = useTeams();
+  const live = useLive();
+  // Live squads replace the mock bears once signed in; summoning is mock-only.
+  const teams = live.teams ?? mock.teams;
+  const summon = live.teams ? () => {} : mock.summon;
   const [focus, setFocus] = useState<number | null>(null);
   const [bay, setBay] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -79,6 +85,12 @@ export default function Home() {
             <div className="font-hand text-lg text-white/70">den {bay + 1} · the {agent.role} · {agent.costume}</div>
             <div className="font-pixel text-5xl text-[#fff3dc]">{agent.name}</div>
           </>
+        ) : live.teams && focus === 3 ? (
+          <>
+            <div className="font-hand text-lg text-white/70">another player team</div>
+            <div className="font-pixel text-4xl text-[#ff4f8b]">Private den</div>
+            <div className="font-hand mt-1 text-xl text-white/80">Other teams&apos; squads and context stay hidden.</div>
+          </>
         ) : (
           <>
             <div className="font-hand text-lg text-white/70">den {bay + 1}</div>
@@ -130,6 +142,7 @@ export default function Home() {
           {focus === null ? "~ click a den to step inside ~" : "~ scroll, drag or use ← → to meet each bear · esc to leave ~"}
         </div>
       )}
+      {!intro && <MissionPanel live={live} focus={focus !== null && focus < 3 ? focus : null} />}
       {intro && <Intro onReveal={() => setDiving(false)} onDone={() => setIntro(false)} />}
     </main>
   );

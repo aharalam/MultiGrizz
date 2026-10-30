@@ -93,6 +93,9 @@ const INITIAL: Team[] = [
   },
 ];
 
+// Den looks (species, wall color, ink) reused by the live backend view.
+export const DEN_STYLES = INITIAL.map(({ species, color, ink }) => ({ species, color, ink }));
+
 const SPARE: Pick<Agent, "name" | "role" | "costume" | "description">[] = [
   { name: "Pumpkin", role: "writer", costume: "pumpkin", description: "Freshly summoned, ready to write." },
   { name: "Wisp", role: "researcher", costume: "ghost", description: "Freshly summoned, ready to dig." },

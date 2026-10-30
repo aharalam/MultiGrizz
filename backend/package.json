@@ -11,7 +11,9 @@
     "start": "node --env-file=.env dist/server.js",
     "build": "tsc -p tsconfig.json",
     "test": "node --import tsx --test test/*.test.ts",
-    "smoke:live": "node --env-file=.env --import tsx scripts/smoke-live.ts"
+    "smoke:live": "node --env-file=.env --import tsx scripts/smoke-live.ts",
+    "demo:mission": "node --env-file=.env --import tsx scripts/demo-mission.ts",
+    "demo:users": "node --env-file=.env --import tsx scripts/demo-users.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
