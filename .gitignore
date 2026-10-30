@@ -1,0 +1,12 @@
+.impeccable/
+.claude/settings.local.json
+.agents/skills/impeccable/scripts/bin/
+.claude/skills/impeccable/scripts/bin/
+node_modules/
+.env
+.env.*
+!.env.example
+.next/
+dist/
+coverage/
+*.tsbuildinfo
